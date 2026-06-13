@@ -1,6 +1,7 @@
 import streamlit as st
 import uuid
-from typing import TypedDict, List
+from typing import TypedDict, List, Optional
+from datetime import date
 
 # 상수 정의
 PAGE_TITLE = "할 일(To-Do) 앱"
@@ -12,6 +13,7 @@ class TodoItem(TypedDict):
     id: str
     task: str
     completed: bool
+    due_date: Optional[date]
 
 # 상태 초기화 함수
 def init_session_state() -> None:
@@ -20,14 +22,15 @@ def init_session_state() -> None:
         st.session_state[TODO_SESSION_KEY] = []
 
 # 핵심 로직 함수들 (UI와 분리)
-def add_todo(task: str) -> None:
+def add_todo(task: str, due_date: Optional[date] = None) -> None:
     """새로운 할 일을 추가합니다."""
     if not task.strip():
         return
     new_todo: TodoItem = {
         "id": str(uuid.uuid4()),
         "task": task.strip(),
-        "completed": False
+        "completed": False,
+        "due_date": due_date
     }
     st.session_state[TODO_SESSION_KEY].append(new_todo)
 
@@ -65,9 +68,15 @@ def main() -> None:
     # 할 일 추가 폼
     with st.form("add_todo_form", clear_on_submit=True):
         new_task = st.text_input("새로운 할 일을 입력하세요", placeholder="예: 코딩 공부하기")
+        col1, col2 = st.columns(2)
+        with col1:
+            use_due_date = st.checkbox("마감일 설정")
+        with col2:
+            due_date = st.date_input("마감일 선택", value="today")
         submitted = st.form_submit_button("추가")
         if submitted and new_task:
-            add_todo(new_task)
+            final_due_date = due_date if use_due_date else None
+            add_todo(new_task, final_due_date)
             st.rerun()
 
     # 할 일 목록 표시
@@ -76,8 +85,19 @@ def main() -> None:
         col1, col2 = st.columns([0.8, 0.2])
         with col1:
             # 체크박스로 완료 상태 표시 및 토글
+            label_text = todo["task"]
+            item_due_date = todo.get("due_date")
+            
+            if item_due_date:
+                due_date_str = item_due_date.strftime("%Y-%m-%d")
+                is_overdue = not todo["completed"] and item_due_date < date.today()
+                if is_overdue:
+                    label_text = f":red[{todo['task']} (마감: {due_date_str})]"
+                else:
+                    label_text = f"{todo['task']} (마감: {due_date_str})"
+
             is_completed = st.checkbox(
-                todo["task"], 
+                label_text, 
                 value=todo["completed"], 
                 key=f"check_{todo['id']}"
             )
